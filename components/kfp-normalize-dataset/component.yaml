@@ -1,0 +1,78 @@
+# PIPELINE DEFINITION
+# Name: normalize-dataset
+# Description: Normalizes a dataset by pulling it from a remote location and storing it locally.
+#              If the dataset is a compressed file, it will be extracted and stored in the dataset bucket in a temporary location.
+# Inputs:
+#    dataset_url: str
+#    job_name: str
+# Outputs:
+#    dataset_location: str
+components:
+  comp-normalize-dataset:
+    executorLabel: exec-normalize-dataset
+    inputDefinitions:
+      parameters:
+        dataset_url:
+          parameterType: STRING
+        job_name:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        dataset_location:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-normalize-dataset:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - normalize_dataset
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'gcsfs' 's3fs'\
+          \ 'fsspec' 'python-magic' && \"$0\" \"$@\"\n"
+        - python3
+        - -m
+        - kfp.dsl.executor_main
+        image: us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-normalize-dataset:latest
+pipelineInfo:
+  name: normalize-dataset
+root:
+  dag:
+    outputs:
+      parameters:
+        dataset_location:
+          valueFromParameter:
+            outputParameterKey: dataset_location
+            producerSubtask: normalize-dataset
+    tasks:
+      normalize-dataset:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-normalize-dataset
+        inputs:
+          parameters:
+            dataset_url:
+              componentInputParameter: dataset_url
+            job_name:
+              componentInputParameter: job_name
+        taskInfo:
+          name: normalize-dataset
+  inputDefinitions:
+    parameters:
+      dataset_url:
+        parameterType: STRING
+      job_name:
+        parameterType: STRING
+  outputDefinitions:
+    parameters:
+      dataset_location:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.2.0

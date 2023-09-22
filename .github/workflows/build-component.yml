@@ -51,7 +51,7 @@ jobs:
             us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/${{ inputs.component-name }}
           tags: |
             type=ref,event=tag
-            type=ref,event=branch,prefix=branch/
+            type=ref,event=branch,prefix=branch/,suffix=-${{ github.run_number }}
 
       - name: Build Component Docker Image
         uses: docker/build-push-action@v4

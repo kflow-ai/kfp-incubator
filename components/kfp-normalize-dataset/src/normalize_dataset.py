@@ -121,7 +121,7 @@ def extract_dataset(
 
 
 @dsl.component(
-    target_image="us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-normalize-dataset:latest",
+    target_image="us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-normalize-dataset:latest",
     base_image="python:3.11-slim",
     packages_to_install=["gcsfs", "s3fs", "fsspec", "python-magic"],
 )
@@ -155,4 +155,6 @@ def normalize_dataset(
 
 
 if __name__ == "__main__":
-    compiler.Compiler().compile(normalize_dataset, "component.yaml")
+    compiler.Compiler().compile(
+        normalize_dataset, path.join(path.dirname(__file__), "..", "component.yaml")
+    )

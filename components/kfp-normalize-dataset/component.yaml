@@ -1,7 +1,8 @@
 # PIPELINE DEFINITION
 # Name: normalize-dataset
-# Description: Normalizes a dataset by pulling it from a remote location and storing it locally.
-#              If the dataset is a compressed file, it will be extracted and stored in the dataset bucket in a temporary location.
+# Description: Normalizes a platform ui dataset by pulling it from its storage location, extracts documents from the file either by
+#              uncompressing/untaring it or extracting it from a text file with triple new lines as the document separator, and
+#              storing it into a pipeline location in storage.
 # Inputs:
 #    dataset_url: str
 #    job_name: str
@@ -39,7 +40,7 @@ deploymentSpec:
         - python3
         - -m
         - kfp.dsl.executor_main
-        image: us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-normalize-dataset:latest
+        image: us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-normalize-dataset:latest
 pipelineInfo:
   name: normalize-dataset
 root:

@@ -19,9 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ inputs.ref }}
       - run: |
-          echo "python_version=$(cat components/${{ github.event.inputs.component_name }}/.python-version)" >> $GITHUB_ENV
+          echo "python_version=$(cat components/${{ inputs.component-name }}/.python-version)" >> $GITHUB_ENV
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -59,7 +59,7 @@ jobs:
         with:
           context: git
           images: |
-            us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/${{ github.event.inputs.component_name }}
+            us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/${{ inputs.component-name }}
           tags: |
             type=ref,event=tag
             type=ref,event=branch,prefix=branch/
@@ -67,7 +67,7 @@ jobs:
       - name: Build Component Docker Image
         uses: docker/build-push-action@v4
         with:
-          context: components/${{ github.event.inputs.component_name }}/src/
+          context: components/${{ inputs.component-name }}/src/
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

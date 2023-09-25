@@ -1,0 +1,156 @@
+# PIPELINE DEFINITION
+# Name: vectorize-dataset
+# Description: Vectorizes each file ina  dataset and persists them to a datastore
+#              If `ray_address` is provided, then the component will use ray tasks to vectorize batches
+#              of the files in parallel. Otherwise, it will vectorize the files sequentially.
+# Inputs:
+#    batch_size: int [Default: 1000.0]
+#    concurrency: int [Default: 150.0]
+#    dataset_url: str
+#    ray_address: str
+#    vectordb_cls: str
+#    vectordb_kwargs: dict [Default: {}]
+components:
+  comp-vectorize-dataset:
+    executorLabel: exec-vectorize-dataset
+    inputDefinitions:
+      parameters:
+        batch_size:
+          defaultValue: 1000.0
+          description: 'The number of files to vectorize in each batch. This is only
+            used if `ray_address` is
+
+            provided.'
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        concurrency:
+          defaultValue: 150.0
+          description: 'The maximum number of concurrent ray tasks to run. This is
+            only used if `ray_address`
+
+            is provided.'
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        dataset_url:
+          description: 'The URL of the dataset to vectorize. This should be a directory
+            of separate documents.
+
+            All files in the directory and any subdirectory will be vectorized. The
+            URL should be in the form
+
+            of a supported fsspec URL (e.g. `gs://` for Google Cloud Storage, `s3://`
+            for S3, etc.)'
+          parameterType: STRING
+        ray_address:
+          description: 'The address of the ray cluster to use for parallelization.
+            If `None`, then the files
+
+            will be vectorized sequentially.'
+          isOptional: true
+          parameterType: STRING
+        vectordb_cls:
+          description: 'The class of the vector store to persist the vectors to. This
+            should be a class from
+
+            `llama_index.vector_stores`. If `None`, then the vectors will not be persisted.'
+          parameterType: STRING
+        vectordb_kwargs:
+          defaultValue: {}
+          description: The keyword arguments to pass to the vector store class constructor.
+          isOptional: true
+          parameterType: STRUCT
+deploymentSpec:
+  executors:
+    exec-vectorize-dataset:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - vectorize_dataset
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'gcsfs' 's3fs'\
+          \ 'fsspec' 'ray[client]' 'llama_index' 'langchain' 'sentence-transformers'\
+          \ 'pymilvus' && \"$0\" \"$@\"\n"
+        - python3
+        - -m
+        - kfp.dsl.executor_main
+        image: us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-vectorize-dataset:latest
+pipelineInfo:
+  name: vectorize-dataset
+root:
+  dag:
+    tasks:
+      vectorize-dataset:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-vectorize-dataset
+        inputs:
+          parameters:
+            batch_size:
+              componentInputParameter: batch_size
+            concurrency:
+              componentInputParameter: concurrency
+            dataset_url:
+              componentInputParameter: dataset_url
+            ray_address:
+              componentInputParameter: ray_address
+            vectordb_cls:
+              componentInputParameter: vectordb_cls
+            vectordb_kwargs:
+              componentInputParameter: vectordb_kwargs
+        taskInfo:
+          name: vectorize-dataset
+  inputDefinitions:
+    parameters:
+      batch_size:
+        defaultValue: 1000.0
+        description: 'The number of files to vectorize in each batch. This is only
+          used if `ray_address` is
+
+          provided.'
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      concurrency:
+        defaultValue: 150.0
+        description: 'The maximum number of concurrent ray tasks to run. This is only
+          used if `ray_address`
+
+          is provided.'
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      dataset_url:
+        description: 'The URL of the dataset to vectorize. This should be a directory
+          of separate documents.
+
+          All files in the directory and any subdirectory will be vectorized. The
+          URL should be in the form
+
+          of a supported fsspec URL (e.g. `gs://` for Google Cloud Storage, `s3://`
+          for S3, etc.)'
+        parameterType: STRING
+      ray_address:
+        description: 'The address of the ray cluster to use for parallelization. If
+          `None`, then the files
+
+          will be vectorized sequentially.'
+        isOptional: true
+        parameterType: STRING
+      vectordb_cls:
+        description: 'The class of the vector store to persist the vectors to. This
+          should be a class from
+
+          `llama_index.vector_stores`. If `None`, then the vectors will not be persisted.'
+        parameterType: STRING
+      vectordb_kwargs:
+        defaultValue: {}
+        description: The keyword arguments to pass to the vector store class constructor.
+        isOptional: true
+        parameterType: STRUCT
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.2.0

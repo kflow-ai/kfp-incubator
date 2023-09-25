@@ -161,7 +161,7 @@ def url_as_path(url: str) -> str:
 
 
 @dsl.component(
-    target_image="us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-vectorize-dataset:latest",
+    target_image="us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-vectorize-dataset:latest",
     base_image="python:3.11-slim",
     packages_to_install=[
         "gcsfs",

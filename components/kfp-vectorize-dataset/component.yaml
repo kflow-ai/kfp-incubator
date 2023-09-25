@@ -79,7 +79,7 @@ deploymentSpec:
         - python3
         - -m
         - kfp.dsl.executor_main
-        image: us-central1-docker.pkg.dev/kflow-gke-dev/stephen-kfp-test/kfp-vectorize-dataset:latest
+        image: us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-vectorize-dataset:latest
 pipelineInfo:
   name: vectorize-dataset
 root:

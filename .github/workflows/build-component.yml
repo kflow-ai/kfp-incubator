@@ -1,6 +1,17 @@
 name: Build & Push KFP omponent
 
 on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The git ref to build"
+        required: true
+        default: main
+        type: string
+      component-name:
+        description: "Name of the component"
+        required: true
+        type: string
   workflow_call:
     inputs:
       ref:

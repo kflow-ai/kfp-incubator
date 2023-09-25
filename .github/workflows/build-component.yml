@@ -1,4 +1,4 @@
-name: Build & Push KFP omponent
+name: Build & Push KFP Component
 
 on:
   workflow_call:

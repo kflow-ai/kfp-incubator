@@ -1,4 +1,4 @@
-name: Build & Push KFP omponent
+name: Build & Push KFP Component
 
 on:
   workflow_dispatch:
@@ -23,6 +23,10 @@ on:
         description: "Name of the component"
         required: true
         type: string
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   build:

@@ -112,7 +112,7 @@ def ray_vectorize_dataset(
     vectordb_kwargs: dict = None,
     concurrency: int = DEFAULT_CONCURRENCY,
 ):
-    runtime_env = {"pip": path.join(path.dirname(__file__), "..", "requirements.txt")}
+    runtime_env = {"pip": path.join(path.dirname(__file__), "runtime-requirements.txt")}
     ray.init(address=ray_address, runtime_env=runtime_env)
 
     ##  Make remote versions of the functions we'll need
@@ -164,23 +164,23 @@ def url_as_path(url: str) -> str:
     target_image="us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-vectorize-dataset:latest",
     base_image="python:3.11-slim",
     packages_to_install=[
-        "gcsfs",
-        "s3fs",
-        "fsspec",
-        "ray[client]",
-        "llama_index",
-        "langchain",
-        "sentence-transformers",
-        "pymilvus",
+        "gcsfs~=2023.9",
+        "s3fs~=2023.9",
+        "fsspec~=2023.9",
+        "ray[client]~=2.7",
+        "llama_index~=0.8.29",
+        "langchain~=0.0.298",
+        "sentence-transformers~=2.2",
+        "pymilvus~=2.3",
     ],
 )
 def vectorize_dataset(
     dataset_url: str,
     vectordb_cls: str,
-    vectordb_kwargs: dict = {},
-    ray_address: str = None,
-    batch_size: int = 1000,
-    concurrency: int = DEFAULT_CONCURRENCY,
+    vectordb_kwargs: dict,
+    ray_address: str,
+    batch_size: int,
+    concurrency: int,
 ):
     """
     Vectorizes each file ina  dataset and persists them to a datastore

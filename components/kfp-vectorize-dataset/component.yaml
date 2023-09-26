@@ -4,32 +4,28 @@
 #              If `ray_address` is provided, then the component will use ray tasks to vectorize batches
 #              of the files in parallel. Otherwise, it will vectorize the files sequentially.
 # Inputs:
-#    batch_size: int [Default: 1000.0]
-#    concurrency: int [Default: 150.0]
+#    batch_size: int
+#    concurrency: int
 #    dataset_url: str
 #    ray_address: str
 #    vectordb_cls: str
-#    vectordb_kwargs: dict [Default: {}]
+#    vectordb_kwargs: dict
 components:
   comp-vectorize-dataset:
     executorLabel: exec-vectorize-dataset
     inputDefinitions:
       parameters:
         batch_size:
-          defaultValue: 1000.0
           description: 'The number of files to vectorize in each batch. This is only
             used if `ray_address` is
 
             provided.'
-          isOptional: true
           parameterType: NUMBER_INTEGER
         concurrency:
-          defaultValue: 150.0
           description: 'The maximum number of concurrent ray tasks to run. This is
             only used if `ray_address`
 
             is provided.'
-          isOptional: true
           parameterType: NUMBER_INTEGER
         dataset_url:
           description: 'The URL of the dataset to vectorize. This should be a directory
@@ -46,7 +42,6 @@ components:
             If `None`, then the files
 
             will be vectorized sequentially.'
-          isOptional: true
           parameterType: STRING
         vectordb_cls:
           description: 'The class of the vector store to persist the vectors to. This
@@ -55,9 +50,7 @@ components:
             `llama_index.vector_stores`. If `None`, then the vectors will not be persisted.'
           parameterType: STRING
         vectordb_kwargs:
-          defaultValue: {}
           description: The keyword arguments to pass to the vector store class constructor.
-          isOptional: true
           parameterType: STRUCT
 deploymentSpec:
   executors:
@@ -109,20 +102,16 @@ root:
   inputDefinitions:
     parameters:
       batch_size:
-        defaultValue: 1000.0
         description: 'The number of files to vectorize in each batch. This is only
           used if `ray_address` is
 
           provided.'
-        isOptional: true
         parameterType: NUMBER_INTEGER
       concurrency:
-        defaultValue: 150.0
         description: 'The maximum number of concurrent ray tasks to run. This is only
           used if `ray_address`
 
           is provided.'
-        isOptional: true
         parameterType: NUMBER_INTEGER
       dataset_url:
         description: 'The URL of the dataset to vectorize. This should be a directory
@@ -139,7 +128,6 @@ root:
           `None`, then the files
 
           will be vectorized sequentially.'
-        isOptional: true
         parameterType: STRING
       vectordb_cls:
         description: 'The class of the vector store to persist the vectors to. This
@@ -148,9 +136,7 @@ root:
           `llama_index.vector_stores`. If `None`, then the vectors will not be persisted.'
         parameterType: STRING
       vectordb_kwargs:
-        defaultValue: {}
         description: The keyword arguments to pass to the vector store class constructor.
-        isOptional: true
         parameterType: STRUCT
 schemaVersion: 2.1.0
 sdkVersion: kfp-2.2.0

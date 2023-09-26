@@ -2,56 +2,44 @@ import itertools
 import logging
 from os import path
 from tempfile import TemporaryDirectory
-from typing import Iterable, List, Sequence, TypeVar
+from typing import Iterable, List, Sequence
 
-import fsspec
-import llama_index.vector_stores
 import ray
-from fsspec.asyn import AsyncFileSystem
 from kfp import compiler, dsl
-from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
-from llama_index import (
-    ServiceContext,
-    SimpleDirectoryReader,
-    StorageContext,
-    VectorStoreIndex,
-)
-from llama_index.data_structs import IndexDict
-from llama_index.llms import MockLLM
-from llama_index.node_parser import SimpleNodeParser
-from llama_index.schema import BaseNode
 
 ## The default concurrency for the number of concurrent
 ## ray tasks
 DEFAULT_CONCURRENCY = 150
 
 ## The largest number of tasks we'll wait for at a time
-READY_BATCH_SIZE = 10
-
-
-T = TypeVar("T")
+READY_BATCH_SIZE = 1
 
 ## Custom embeddings are currently not supported
 ## We use the BGE embeddings for now since they're at
 ## the top of the leaderboards.
 EMBEDDING = "BAAI/bge-base-en"
 
-
 logging.basicConfig(level=logging.INFO)
 
 
-def partition(lst: Sequence[T], size: int):
+def partition(lst: Sequence, size: int):
     for i in range(0, len(lst), size):
         yield lst[i : i + size]
 
 
 def download_files(root_uri: str, files: List[str], targetDir: str):
+    import fsspec
+
     logging.info(f"Downloading files to {targetDir}")
     fs = fsspec.filesystem(root_uri.split("://", 1)[0])
     fs.get([path.join(root_uri, f) for f in files], targetDir)
 
 
 def vectorize_fileset(root_uri: str, files: List[str]):
+    from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
+    from llama_index import SimpleDirectoryReader
+    from llama_index.node_parser import SimpleNodeParser
+
     logging.basicConfig(level=logging.INFO)
     with TemporaryDirectory() as temp_dir:
         download_files(root_uri, files, temp_dir)
@@ -67,13 +55,21 @@ def vectorize_fileset(root_uri: str, files: List[str]):
         nodes = node_parser.get_nodes_from_documents(docs, show_progress=True)
 
         logging.info(f"Embedding {len(nodes)} nodes")
-        for idx, node in enumerate(nodes):
-            nodes[idx].embedding = embedding.embed_documents([node.text])[0]
+        for idx, embedding in enumerate(
+            embedding.embed_documents([n.text for n in nodes])
+        ):
+            nodes[idx].embedding = embedding
 
     return nodes
 
 
-def persist_nodes(nodes: List[BaseNode], vectordb_cls: str, vectordb_kwargs: dict):
+def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
+    import llama_index.vector_stores
+    from llama_index import ServiceContext, StorageContext, VectorStoreIndex
+    from llama_index.data_structs import IndexDict
+    from llama_index.llms import MockLLM
+    from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
+
     if vectordb_cls is None:
         logging.warn("Unable to persist nodes, there is no vector store specified")
         return
@@ -112,28 +108,26 @@ def ray_vectorize_dataset(
     vectordb_kwargs: dict = None,
     concurrency: int = DEFAULT_CONCURRENCY,
 ):
-    with open(
-        path.join(path.dirname(__file__), "runtime-requirements.txt")
-    ) as requirements_file:
-        runtime_requirements = requirements_file.read().splitlines()
-
-    # Filter out ray so that we don't overwrite the ray on the ray workers,
-    # but we do need ray on the kubeflow worker (and we don't want to have to
-    # maintain a separate requirements list)
-    requirements = list(filter(lambda x: not "ray" in x, runtime_requirements))
-
-    runtime_env = {"pip": requirements}
+    runtime_env = {
+        "pip": [
+            "gcsfs~=2023.9",
+            "s3fs~=2023.9",
+            "fsspec~=2023.9",
+            "llama_index~=0.8.29",
+            "langchain~=0.0.298",
+            "sentence-transformers~=2.2",
+            "pymilvus~=2.3",
+        ]
+    }
     ray.init(address=ray_address, runtime_env=runtime_env)
 
     ##  Make remote versions of the functions we'll need
     remote_vectorize_fileset = ray.remote(vectorize_fileset)
 
-    n = first(partition(files, size=batch_size), 2)
-
     ## Partition the file lists into batches and submit them to ray
     result_refs = []
 
-    for p in first(partition(files, size=batch_size), 3):
+    for p in partition(files, size=batch_size):
         results = None
         if len(result_refs) >= concurrency:
             ready_refs, result_refs = ray.wait(
@@ -161,7 +155,9 @@ def ray_vectorize_dataset(
         )
 
 
-def get_fs(url: str) -> AsyncFileSystem:
+def get_fs(url: str):
+    import fsspec
+
     return fsspec.filesystem(url.split("://", 1)[0])
 
 
@@ -172,16 +168,9 @@ def url_as_path(url: str) -> str:
 
 @dsl.component(
     target_image="us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-vectorize-dataset:latest",
-    base_image="python:3.11-slim",
+    base_image="python:3.9-slim",
     packages_to_install=[
-        "gcsfs~=2023.9",
-        "s3fs~=2023.9",
-        "fsspec~=2023.9",
         "ray[client]~=2.7",
-        "llama_index~=0.8.29",
-        "langchain~=0.0.298",
-        "sentence-transformers~=2.2",
-        "pymilvus~=2.3",
     ],
 )
 def vectorize_dataset(
@@ -214,6 +203,7 @@ def vectorize_dataset(
     """
     fs = get_fs(dataset_url)
     dataset_path = url_as_path(dataset_url)
+    dataset_path = dataset_path.rstrip("/") + "/"  ## Ensure the path ends with a slash
 
     all_files = list(
         itertools.chain(

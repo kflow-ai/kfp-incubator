@@ -112,7 +112,17 @@ def ray_vectorize_dataset(
     vectordb_kwargs: dict = None,
     concurrency: int = DEFAULT_CONCURRENCY,
 ):
-    runtime_env = {"pip": path.join(path.dirname(__file__), "runtime-requirements.txt")}
+    with open(
+        path.join(path.dirname(__file__), "runtime-requirements.txt")
+    ) as requirements_file:
+        runtime_requirements = requirements_file.read().splitlines()
+
+    # Filter out ray so that we don't overwrite the ray on the ray workers,
+    # but we do need ray on the kubeflow worker (and we don't want to have to
+    # maintain a separate requirements list)
+    requirements = list(filter(lambda x: not "ray" in x, runtime_requirements))
+
+    runtime_env = {"pip": requirements}
     ray.init(address=ray_address, runtime_env=runtime_env)
 
     ##  Make remote versions of the functions we'll need

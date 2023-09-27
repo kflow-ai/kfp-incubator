@@ -2,7 +2,7 @@ import itertools
 import logging
 from os import path
 from tempfile import TemporaryDirectory
-from typing import Iterable, List, Sequence
+from typing import List, Sequence
 
 import ray
 from kfp import compiler, dsl
@@ -36,12 +36,17 @@ def download_files(root_uri: str, files: List[str], targetDir: str):
 
 
 def vectorize_fileset(root_uri: str, files: List[str]):
+    import nltk
     from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
     from llama_index import SimpleDirectoryReader
     from llama_index.node_parser import SimpleNodeParser
 
     logging.basicConfig(level=logging.INFO)
-    with TemporaryDirectory() as temp_dir:
+
+    with TemporaryDirectory() as temp_dir, TemporaryDirectory() as nltk_temp_dir:
+        nltk.data.path.append(nltk_temp_dir)
+        nltk.download("punkt", download_dir=nltk_temp_dir)
+
         download_files(root_uri, files, temp_dir)
 
         embedding = HuggingFaceBgeEmbeddings(model_name=EMBEDDING)
@@ -65,10 +70,10 @@ def vectorize_fileset(root_uri: str, files: List[str]):
 
 def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
     import llama_index.vector_stores
+    from langchain.embeddings.fake import FakeEmbeddings
     from llama_index import ServiceContext, StorageContext, VectorStoreIndex
     from llama_index.data_structs import IndexDict
     from llama_index.llms import MockLLM
-    from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
 
     if vectordb_cls is None:
         logging.warn("Unable to persist nodes, there is no vector store specified")
@@ -83,7 +88,7 @@ def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
     vector_store = cls(**vectordb_kwargs)
 
     service_context = ServiceContext.from_defaults(
-        llm=MockLLM(), embed_model=HuggingFaceBgeEmbeddings(model_name=EMBEDDING)
+        llm=MockLLM(), embed_model=FakeEmbeddings(size=len(nodes[0].embedding))
     )
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
     vector_store_index = VectorStoreIndex(
@@ -93,10 +98,6 @@ def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
     )
     logging.info(f"Persisting {len(nodes)} nodes to vector store")
     vector_store_index.insert_nodes(nodes)
-
-
-def first(iter: Iterable, n=1):
-    return [next(iter) for _ in range(n)]
 
 
 def ray_vectorize_dataset(
@@ -109,20 +110,28 @@ def ray_vectorize_dataset(
     concurrency: int = DEFAULT_CONCURRENCY,
 ):
     runtime_env = {
-        "pip": [
-            "gcsfs~=2023.9",
-            "s3fs~=2023.9",
-            "fsspec~=2023.9",
-            "llama_index~=0.8.29",
-            "langchain~=0.0.298",
-            "sentence-transformers~=2.2",
-            "pymilvus~=2.3",
-        ]
+        "conda": {
+            "dependencies": [
+                "pip",
+                {
+                    "pip": [
+                        "gcsfs~=2023.9",
+                        "s3fs~=2023.9",
+                        "fsspec~=2023.9",
+                        "llama_index~=0.8.29",
+                        "langchain~=0.0.298",
+                        "sentence-transformers~=2.2",
+                        "nltk",
+                    ]
+                },
+            ],
+        },
     }
     ray.init(address=ray_address, runtime_env=runtime_env)
 
     ##  Make remote versions of the functions we'll need
     remote_vectorize_fileset = ray.remote(vectorize_fileset)
+    remote_vectorize_fileset = remote_vectorize_fileset.options(num_cpus=2)
 
     ## Partition the file lists into batches and submit them to ray
     result_refs = []
@@ -168,9 +177,14 @@ def url_as_path(url: str) -> str:
 
 @dsl.component(
     target_image="us-central1-docker.pkg.dev/kflow-artifacts/kfp-components/kfp-vectorize-dataset:latest",
-    base_image="python:3.9-slim",
+    base_image="python:3.10-slim",
     packages_to_install=[
         "ray[client]~=2.7",
+        "gcsfs~=2023.9",
+        "s3fs~=2023.9",
+        "fsspec~=2023.9",
+        "llama_index~=0.8.29",
+        "pymilvus~=2.3",
     ],
 )
 def vectorize_dataset(

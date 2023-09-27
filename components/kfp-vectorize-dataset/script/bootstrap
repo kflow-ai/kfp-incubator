@@ -23,7 +23,7 @@ fi
 if [ ! -d ".venv" ]; then
     echo "==> Creating virtual environment…"
     virtualenv .venv -p $(pyenv which python3)
-    venv/bin/pip install pip-tools
+    .venv/bin/pip install pip-tools
 fi
 
 if [ -f "dev_requirements.txt" ]; then

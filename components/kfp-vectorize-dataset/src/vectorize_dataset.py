@@ -17,7 +17,9 @@ logging.basicConfig(level=logging.INFO)
 
 ## The default concurrency for the number of concurrent
 ## ray tasks
-DEFAULT_CONCURRENCY = 150
+DEFAULT_CPU_CONCURRENCY = 150
+
+DEFAULT_GPU_CONCURRENCY = 10
 
 ## The largest number of tasks we'll wait for at a time
 READY_BATCH_SIZE = 1
@@ -72,7 +74,8 @@ def ray_vectorize_dataset(
     batch_size=1000,
     vectordb_cls: str = None,
     vectordb_kwargs: dict = None,
-    concurrency: int = DEFAULT_CONCURRENCY,
+    concurrency: int = None,
+    use_gpu: bool = False,
 ):
     runtime_env = {
         "working_dir": ".",
@@ -96,9 +99,16 @@ def ray_vectorize_dataset(
     }
     ray.init(address=ray_address, runtime_env=runtime_env)
 
+    num_cpus = 2 if not use_gpu else 1
+    num_gpus = 1 if use_gpu else 0
     ##  Make remote versions of the functions we'll need
     remote_vectorize_fileset = ray.remote(vectorize_fileset.vectorize_fileset)
-    remote_vectorize_fileset = remote_vectorize_fileset.options(num_cpus=2)
+    remote_vectorize_fileset = remote_vectorize_fileset.options(
+        num_cpus=num_cpus, num_gpus=num_gpus
+    )
+
+    if concurrency is None:
+        concurrency = DEFAULT_GPU_CONCURRENCY if use_gpu else DEFAULT_CPU_CONCURRENCY
 
     ## Partition the file lists into batches and submit them to ray
     result_refs = []
@@ -150,6 +160,7 @@ def vectorize_dataset(
     ray_address: str,
     batch_size: int,
     concurrency: int,
+    use_gpu: bool = False,
 ):
     """
     Vectorizes each file ina  dataset and persists them to a datastore
@@ -192,7 +203,8 @@ def vectorize_dataset(
             vectordb_cls=vectordb_cls,
             vectordb_kwargs=vectordb_kwargs,
             batch_size=batch_size,
-            concurrency=concurrency,
+            cpuconcurrency=concurrency,
+            use_gpu=use_gpu,
         )
     else:
         nodes = vectorize_fileset(dataset_url, all_files)

@@ -110,6 +110,7 @@ def ray_vectorize_dataset(
     concurrency: int = DEFAULT_CONCURRENCY,
 ):
     runtime_env = {
+        "working_dir": ".",
         "conda": {
             "dependencies": [
                 "pip",

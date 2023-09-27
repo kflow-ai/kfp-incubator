@@ -1,11 +1,19 @@
 import itertools
 import logging
 from os import path
-from tempfile import TemporaryDirectory
 from typing import List, Sequence
 
+import llama_index.vector_stores
 import ray
 from kfp import compiler, dsl
+from langchain.embeddings.fake import FakeEmbeddings
+from llama_index import ServiceContext, StorageContext, VectorStoreIndex
+from llama_index.data_structs import IndexDict
+from llama_index.llms import MockLLM
+import vectorize_fileset
+
+logging.basicConfig(level=logging.INFO)
+
 
 ## The default concurrency for the number of concurrent
 ## ray tasks
@@ -14,67 +22,19 @@ DEFAULT_CONCURRENCY = 150
 ## The largest number of tasks we'll wait for at a time
 READY_BATCH_SIZE = 1
 
-## Custom embeddings are currently not supported
-## We use the BGE embeddings for now since they're at
-## the top of the leaderboards.
-EMBEDDING = "BAAI/bge-base-en"
 
-logging.basicConfig(level=logging.INFO)
-
-
-def partition(lst: Sequence, size: int):
-    for i in range(0, len(lst), size):
-        yield lst[i : i + size]
-
-
-def download_files(root_uri: str, files: List[str], targetDir: str):
+def get_fs(url: str):
     import fsspec
 
-    logging.info(f"Downloading files to {targetDir}")
-    fs = fsspec.filesystem(root_uri.split("://", 1)[0])
-    fs.get([path.join(root_uri, f) for f in files], targetDir)
+    return fsspec.filesystem(url.split("://", 1)[0])
 
 
-def vectorize_fileset(root_uri: str, files: List[str]):
-    import nltk
-    from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings
-    from llama_index import SimpleDirectoryReader
-    from llama_index.node_parser import SimpleNodeParser
-
-    logging.basicConfig(level=logging.INFO)
-
-    with TemporaryDirectory() as temp_dir, TemporaryDirectory() as nltk_temp_dir:
-        nltk.data.path.append(nltk_temp_dir)
-        nltk.download("punkt", download_dir=nltk_temp_dir)
-
-        download_files(root_uri, files, temp_dir)
-
-        embedding = HuggingFaceBgeEmbeddings(model_name=EMBEDDING)
-
-        node_parser = SimpleNodeParser.from_defaults()
-        docs = SimpleDirectoryReader(temp_dir, recursive=True).load_data()
-
-        logging.info(f"Vectorizing {len(docs)} documents")
-
-        logging.info("Parsing nodes from documents.")
-        nodes = node_parser.get_nodes_from_documents(docs, show_progress=True)
-
-        logging.info(f"Embedding {len(nodes)} nodes")
-        for idx, embedding in enumerate(
-            embedding.embed_documents([n.text for n in nodes])
-        ):
-            nodes[idx].embedding = embedding
-
-    return nodes
+def url_as_path(url: str) -> str:
+    """Converts a URL to a path."""
+    return url.split("://", 1)[-1]
 
 
 def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
-    import llama_index.vector_stores
-    from langchain.embeddings.fake import FakeEmbeddings
-    from llama_index import ServiceContext, StorageContext, VectorStoreIndex
-    from llama_index.data_structs import IndexDict
-    from llama_index.llms import MockLLM
-
     if vectordb_cls is None:
         logging.warn("Unable to persist nodes, there is no vector store specified")
         return
@@ -100,6 +60,11 @@ def persist_nodes(nodes: List, vectordb_cls: str, vectordb_kwargs: dict):
     vector_store_index.insert_nodes(nodes)
 
 
+def partition(lst: Sequence, size: int):
+    for i in range(0, len(lst), size):
+        yield lst[i : i + size]
+
+
 def ray_vectorize_dataset(
     ray_address: str,
     root_uri: str,
@@ -111,6 +76,7 @@ def ray_vectorize_dataset(
 ):
     runtime_env = {
         "working_dir": ".",
+        "py_modules": [vectorize_fileset],
         "conda": {
             "dependencies": [
                 "pip",
@@ -131,7 +97,7 @@ def ray_vectorize_dataset(
     ray.init(address=ray_address, runtime_env=runtime_env)
 
     ##  Make remote versions of the functions we'll need
-    remote_vectorize_fileset = ray.remote(vectorize_fileset)
+    remote_vectorize_fileset = ray.remote(vectorize_fileset.vectorize_fileset)
     remote_vectorize_fileset = remote_vectorize_fileset.options(num_cpus=2)
 
     ## Partition the file lists into batches and submit them to ray
@@ -163,17 +129,6 @@ def ray_vectorize_dataset(
             vectordb_cls=vectordb_cls,
             vectordb_kwargs=vectordb_kwargs,
         )
-
-
-def get_fs(url: str):
-    import fsspec
-
-    return fsspec.filesystem(url.split("://", 1)[0])
-
-
-def url_as_path(url: str) -> str:
-    """Converts a URL to a path."""
-    return url.split("://", 1)[-1]
 
 
 @dsl.component(

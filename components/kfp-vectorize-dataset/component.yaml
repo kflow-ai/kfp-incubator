@@ -8,6 +8,7 @@
 #    concurrency: int
 #    dataset_url: str
 #    ray_address: str
+#    use_gpu: bool
 #    vectordb_cls: str
 #    vectordb_kwargs: dict
 components:
@@ -43,6 +44,8 @@ components:
 
             will be vectorized sequentially.'
           parameterType: STRING
+        use_gpu:
+          parameterType: BOOLEAN
         vectordb_cls:
           description: 'The class of the vector store to persist the vectors to. This
             should be a class from
@@ -66,9 +69,9 @@ deploymentSpec:
         - -c
         - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
           \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
-          \ python3 -m pip install --quiet --no-warn-script-location 'gcsfs' 's3fs'\
-          \ 'fsspec' 'ray[client]' 'llama_index' 'langchain' 'sentence-transformers'\
-          \ 'pymilvus' && \"$0\" \"$@\"\n"
+          \ python3 -m pip install --quiet --no-warn-script-location 'ray[client]~=2.7'\
+          \ 'gcsfs~=2023.9' 's3fs~=2023.9' 'fsspec~=2023.9' 'llama_index~=0.8.29'\
+          \ 'pymilvus~=2.3' && \"$0\" \"$@\"\n"
         - python3
         - -m
         - kfp.dsl.executor_main
@@ -93,6 +96,8 @@ root:
               componentInputParameter: dataset_url
             ray_address:
               componentInputParameter: ray_address
+            use_gpu:
+              componentInputParameter: use_gpu
             vectordb_cls:
               componentInputParameter: vectordb_cls
             vectordb_kwargs:
@@ -129,6 +134,8 @@ root:
 
           will be vectorized sequentially.'
         parameterType: STRING
+      use_gpu:
+        parameterType: BOOLEAN
       vectordb_cls:
         description: 'The class of the vector store to persist the vectors to. This
           should be a class from

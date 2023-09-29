@@ -160,7 +160,7 @@ def vectorize_dataset(
     ray_address: str,
     batch_size: int,
     concurrency: int,
-    use_gpu: bool = False,
+    use_gpu: bool,
 ):
     """
     Vectorizes each file ina  dataset and persists them to a datastore

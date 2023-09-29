@@ -203,7 +203,7 @@ def vectorize_dataset(
             vectordb_cls=vectordb_cls,
             vectordb_kwargs=vectordb_kwargs,
             batch_size=batch_size,
-            cpuconcurrency=concurrency,
+            concurrency=concurrency,
             use_gpu=use_gpu,
         )
     else:

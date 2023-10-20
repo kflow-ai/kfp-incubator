@@ -1,6 +1,9 @@
 name: Build kfp-normalize-dataset
 
 on:
+  push:
+    tags:
+      - kfp-normalize-dataset/v*
   workflow_dispatch:
 
 jobs:

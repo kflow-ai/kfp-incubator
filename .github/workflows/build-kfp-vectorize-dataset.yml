@@ -1,6 +1,9 @@
 name: Build kfp-vectorize-dataset
 
 on:
+  push:
+    tags:
+      - kfp-vectorize-dataset/v*
   workflow_dispatch:
 
 jobs:
